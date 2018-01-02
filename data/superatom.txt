@@ -69,6 +69,7 @@ CO2Bu    BuO2C    C(=O)OCCCC
 COOBu    BuOOC    C(=O)OCCCC
 SBu      BuS      SCCCC
 CBr3     Br3C     C(Br)(Br)Br
+AlBr3    Br3Al    Br[Al](Br)Br
 NHCbz    CbzNH    NC(=O)OCC1=CC=CC=C1
 SO2Cl    ClSO2    S(Cl)(=O)=O
 COBr     BrCO     C(=O)Br

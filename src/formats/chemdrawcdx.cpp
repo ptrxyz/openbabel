@@ -84,7 +84,7 @@ using namespace std;
 namespace OpenBabel
 {
 
-//Class which traverse the tree in CDX binary files 
+//Class which traverse the tree in CDX binary files
 class CDXReader
 {
 public:
@@ -231,7 +231,7 @@ bool ChemDrawBinaryXFormat::ReadMolecule(OBBase* pOb, OBConversion* pConv)
   }
 
   // Normal reading of molecules and reactions
-  //Top level parse 
+  //Top level parse
   while(cdxr)
   {
     if(!TopLevelParse(cdxr, pConv, 0))
@@ -263,8 +263,15 @@ bool ChemDrawBinaryXFormat::TopLevelParse
 {
   bool ok = true;
   CDXTag tag;
+  string comment;
+
+  cout << "CrossingBond const: " << std::hex << kCDXObj_CrossingBond << endl;
+  cout << "Border const: " << std::hex << kCDXObj_Border << endl;
+  cout << "Geometry const: " << std::hex << kCDXObj_Geometry << endl;
+  cout << "Constraint const: " << std::hex << kCDXObj_Constraint << endl;
   while((tag = cdxr.ReadNext(objectsOnly)))
   {
+    cout << std::hex << tag << endl;
     if(tag == kCDXObj_Group)
     {
       CDXObjectID cid = cdxr.CurrentID();
@@ -275,32 +282,53 @@ bool ChemDrawBinaryXFormat::TopLevelParse
 
     else if(tag==kCDXObj_Fragment)
     {
+      cout << "Fragment" << endl;
       OBMol* pmol = new OBMol;
       //Save all molecules to the end
       _molmap[cdxr.CurrentID()] = pmol;
 
       if(ContainingGroup)
       {
-        // Add the id of this mol to the group's entry in _groupmap 
+        // Add the id of this mol to the group's entry in _groupmap
         GroupMapIterator gmapiter = _groupmap.find(ContainingGroup);
         if(gmapiter!=_groupmap.end())
           gmapiter->second.push_back(cdxr.CurrentID());
       }
       ok = DoFragment(cdxr, pmol);
+      pmol->AssignSpinMultiplicity(true);
     }
 
     else if(tag == kCDXObj_ReactionStep && readReactions)
     {
       OBReaction* pReact = new OBReaction;
       ok = DoReaction(cdxr, pReact);
-      // Output OBReaction and continue 
+      // Output OBReaction and continue
       if(pReact)
         if(!pConv->AddChemObject(pReact))
           return false; //error during writing
     }
 
+    else if(tag == kCDXObj_Geometry)
+    {
+      cout << std::hex << tag << endl;
+      cout << "Geometry" << endl;
+    }
+
+    else if(tag == kCDXObj_Geometry)
+    {
+      cout << std::hex << tag << endl;
+      cout << "Geometry" << endl;
+    }
+
+    else if(tag == kCDXObj_Geometry)
+    {
+      cout << std::hex << tag << endl;
+      cout << "Geometry" << endl;
+    }
+
     else if(ok && tag==kCDXObj_Graphic)
     {
+      cout << "Graphic" << endl;
       while( (tag = cdxr.ReadNext()) )
       {
         stringstream& ss = cdxr.data();
@@ -325,6 +353,7 @@ bool ChemDrawBinaryXFormat::DoReaction(CDXReader& cdxr, OBReaction* pReact)
 {
   CDXTag tag;
   CDXObjectID id;
+
   while( (tag = cdxr.ReadNext()) )
   {
     if(tag ==	kCDXProp_ReactionStep_Reactants)
@@ -369,6 +398,40 @@ bool ChemDrawBinaryXFormat::DoReaction(CDXReader& cdxr, OBReaction* pReact)
           }
       }
     }
+    else if(tag == kCDXProp_ReactionStep_ObjectsAboveArrow ||
+            tag == kCDXProp_ReactionStep_ObjectsBelowArrow)
+    {
+      stringstream& ss = cdxr.data();
+      for(unsigned i=0;i<cdxr.GetLen()/4;++i)//for each product id
+      {
+        READ_INT32(ss,id);
+        vector<OBMol*> molvec = LookupMol(id); //id could be a group with several mols
+        if(molvec.size() > 0)
+        {
+          for(unsigned i=0;i<molvec.size();++i)
+          {
+            const char * cmt = molvec[i]->GetComment();
+            const char * title = molvec[i]->GetTitle();
+            if(strcmp(title, "justplus") == 0) continue;
+            if (cmt && !cmt[0])
+            {
+              pReact->AddAgent(obsharedptr<OBMol>(molvec[i]));
+            }
+            else
+            {
+              AddToComment(pReact, cmt);
+            }
+          }
+        }
+        else
+        {
+          std::string text = LookupText(id);
+          if (!text.empty())
+            AddToComment(pReact, text);
+        }
+      }
+    }
+
     else if(tag==kCDXProp_ReactionStep_Arrows)
     {
       READ_INT32(cdxr.data(),id);
@@ -417,7 +480,7 @@ OBMol* ChemDrawBinaryXFormat::LookupInMolMap(CDXObjectID id)
   else
   {
     stringstream ss;
-    ss << "Reactant or product mol not found id = " << hex << showbase << id; 
+    ss << "Reactant or product mol not found id = " << hex << showbase << id;
     obErrorLog.ThrowError(__FUNCTION__, ss.str(), obError);
     return NULL;
   }
@@ -462,7 +525,7 @@ bool ChemDrawBinaryXFormat::DoFragment(CDXReader& cdxr, OBMol* pmol)
   return true;
 }
 
-bool ChemDrawBinaryXFormat::DoFragmentImpl(CDXReader& cdxr, OBMol* pmol, 
+bool ChemDrawBinaryXFormat::DoFragmentImpl(CDXReader& cdxr, OBMol* pmol,
        map<CDXObjectID, unsigned>& atommap, map<OBBond*, OBStereo::BondDirection>& updown)
 {
   CDXTag tag;
@@ -472,7 +535,7 @@ bool ChemDrawBinaryXFormat::DoFragmentImpl(CDXReader& cdxr, OBMol* pmol,
     {
       unsigned nodeID = cdxr.CurrentID();
       bool isAlias=false, hasElement=false;
-      UINT16 atnum=-1, spin=0;
+      UINT16 atnum=-1, spin=0, numHydrogens;
       int x, y, charge=0, iso=0;
       string aliastext;
 
@@ -511,15 +574,22 @@ bool ChemDrawBinaryXFormat::DoFragmentImpl(CDXReader& cdxr, OBMol* pmol,
           READ_INT16(cdxr.data(),iso);
           break;
         case kCDXProp_Atom_NumHydrogens:
+          READ_INT16(cdxr.data(),numHydrogens);
           break;
         case kCDXProp_Atom_CIPStereochemistry:
           break;
         case kCDXObj_Text:
           aliastext = DoText(cdxr);
+          cout << "DoFragmentImpl: " << aliastext << endl;
           if(aliastext=="+")
           {
             //This node is not an atom, but dangerous to delete
             pmol->SetTitle("justplus");
+          }
+          else
+          {
+            cout << "DoFragmentImpl AddToComment " << aliastext << endl;
+            AddToComment(pmol, aliastext);
           }
           break;
         case kCDXObj_Fragment:
@@ -546,13 +616,13 @@ bool ChemDrawBinaryXFormat::DoFragmentImpl(CDXReader& cdxr, OBMol* pmol,
       atommap[nodeID] = pmol->NumAtoms();
       if(isAlias || (!aliastext.empty() && atnum==0xffff))
       {
-        //Treat text as an alias 
+        //Treat text as an alias
         pAtom->SetAtomicNum(0);
         AliasData* ad = new AliasData();
         ad->SetAlias(aliastext);
         ad->SetOrigin(fileformatInput);
         pAtom->SetData(ad);
-      } 
+      }
       else
       {
         if(atnum==0xffff)
@@ -561,6 +631,7 @@ bool ChemDrawBinaryXFormat::DoFragmentImpl(CDXReader& cdxr, OBMol* pmol,
         pAtom->SetFormalCharge(charge);
         pAtom->SetIsotope(iso);
         pAtom->SetSpinMultiplicity(spin);
+        pmol->AddHydrogens();
       }
     }
 
@@ -644,8 +715,8 @@ string ChemDrawBinaryXFormat::DoText(CDXReader& cdxr)
       ss.ignore(nStyleRuns*10);
       ss >> text;
     default:
-      if(tag & kCDXTag_Object) //unhandled object
-        while(cdxr.ReadNext());      
+      if(tag & kCDXTag_Object) // unhandled object
+        while(cdxr.ReadNext());
     }
   }
   return text;
@@ -658,7 +729,7 @@ CDXTag CDXReader::ReadNext(bool objectsOnly, int targetDepth)
   CDXTag tag;
   CDXObjectID id;
 
-  while(ifs) 
+  while(ifs)
   {
     READ_INT16(ifs, tag);
     if(tag==0)
@@ -731,7 +802,7 @@ CDXReader::CDXReader(std::istream& is) : ifs(is), depth(0)
 //Routines to display the structure of a cdx binary file
 
 OBText* CDXReader::WriteTree(const string& filename, unsigned wtoptions)
-{  
+{
   const char indentchar = '\t';
   std::map<CDXTag, std::string> enummap;
   ParseEnums(enummap, filename);
@@ -748,12 +819,12 @@ OBText* CDXReader::WriteTree(const string& filename, unsigned wtoptions)
     {
       //Object end
       tss << string(depth,indentchar) << "ObjectEnd " << _tempback << endl;
-    } 
+    }
     else if(tag & kCDXTag_Object)
     {
       //Object
       tss<<string(depth-1,indentchar) << "Object " << tag
-                   << TagName(enummap,tag) << " id=" << ids.back() << endl; 
+                   << TagName(enummap,tag) << " id=" << ids.back() << endl;
     }
     else
     {
@@ -797,7 +868,7 @@ bool CDXReader::ParseEnums(map<CDXTag, string>& enummap, const string& filename)
   ifstream ihs;
   if(OpenDatafile(ihs, filename).empty())
   {
-    obErrorLog.ThrowError(__FUNCTION__, 
+    obErrorLog.ThrowError(__FUNCTION__,
       filename + " needs to be in the *data* directory when displaying the tree.\n" , obError);
     return false;
   }
