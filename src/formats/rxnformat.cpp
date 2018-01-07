@@ -104,8 +104,23 @@ public:
     //Cast to the class type need, e.g. OBMol
     OBBase* pOb=pConv->GetChemObject();
     OBReaction* pReact = dynamic_cast<OBReaction*>(pOb);
-    if(pReact==NULL)
-        return false;
+
+    if(pReact==NULL) {
+      OBMol* pmol = dynamic_cast<OBMol*>(pOb);
+      if (pmol == NULL) return false;
+
+      OBFormat* pMolFormat = pConv->FindFormat("MOL");
+      if(pMolFormat==NULL)
+        {
+          obErrorLog.ThrowError(__FUNCTION__, "MDL MOL format not available", obError);
+          return false;
+        }
+
+      ostream &ofs = *pConv->GetOutStream();
+      ofs << "$MOL" << '\n';
+      pMolFormat->WriteMolecule(pmol, pConv);
+      return true;
+    }
 
     bool ret=false;
     ret=WriteMolecule(pReact,pConv);
