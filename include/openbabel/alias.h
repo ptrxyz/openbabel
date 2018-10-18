@@ -78,6 +78,9 @@ public:
   ///Note that this deletes atoms and bonds. Use only as a preparation for display.
   static void RevertToAliasForm(OBMol& mol);
 
+  ///Reload superatom.txt file
+  static void ReloadFile(){ LoadFile(table()); }
+
   ///Interprets the alias text and adds atoms as appropriate to mol.
   bool Expand(OBMol& mol, const unsigned int atomindex);
 
