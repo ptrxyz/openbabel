@@ -5983,7 +5983,8 @@ namespace OpenBabel {
       pf->fragID1=0;
       pf->fragID2=0;
       pf->fragID3=0;
-      pf->fragFirstAtomNo=nA; // Was nA+1, lead to off-by-one problems with fragments
+      // Was nA+1, lead to off-by-one problems with fragments
+      pf->fragFirstAtomNo = molList.size() == 2 ? (nA+1) : nA;
       pf->fragmentCount=1;
       pf->fragWidth=xMax-xMin;
       pf->fragHeight=yMax-yMin;
