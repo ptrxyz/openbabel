@@ -44,6 +44,7 @@ GNU General Public License for more details.
 
 // For backwards compatibility. Will be removed in the future
 #include <openbabel/rand.h>
+#include <ctime>
 
 namespace OpenBabel
 {
